@@ -1,0 +1,59 @@
+version: '3'
+services:
+  app:
+    build:
+      context: app
+    container_name: app
+    tty: true
+    entrypoint: sh -c "npm install && npm install express mysql && npm install -g npm@10.8.1 && node index.js"
+    volumes:
+      - ./app:/usr/src/app
+    networks:
+      - minharede
+    depends_on:
+      database:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.24.0
+    container_name: nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - '8080:80'
+    depends_on:
+      - app
+    networks:
+      - minharede
+
+  database:
+    image: mysql:5.7
+    command: --innodb-use-native-aio=0
+    container_name: database
+    restart: always
+    tty: true
+    volumes:
+      - mysql:/var/lib/mysql
+      - ./database/:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=nodedb
+
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+    networks:
+      - minharede
+
+
+volumes:
+  mysql:
+    driver: local
+
+networks:
+  minharede:
+    driver: bridge
